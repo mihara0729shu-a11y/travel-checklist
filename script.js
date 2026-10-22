@@ -547,10 +547,9 @@
       h("div", { class: "add-cat" }, catInput, h("button", { class: "btn", onclick: addCat }, "追加")),
       h("div", { class: "fb-band" },
         h("div", {}, mascot("happy", 46),
-          h("p", {}, h("b", { text: "この持ち物チェックリストの使い心地はいかがですか？" }), h("span", { text: "1分で終わるアンケートです。" }))),
+          h("p", {}, h("b", { text: "この持ち物チェックリストの使い心地はいかがですか？" }), h("span", { text: "ご意見・修正案・お問い合わせは、フォームから送れます。" }))),
         h("div", { class: "fb-band-actions" },
-          h("button", { class: "btn", onclick: () => openFeedback("survey") }, "アンケートに答える"),
-          canContact() && h("button", { class: "btn", onclick: () => openFeedback("contact") }, "修正案・お問い合わせ"),
+          h("a", { class: "btn", href: FEEDBACK_FORM_URL, target: "_blank", rel: "noopener" }, "ご意見・お問い合わせ"),
         ),
       ));
   }
@@ -979,6 +978,8 @@
 
   // ---- アンケート ----
   // 回答は feedback/<回答者のid> に貯める。読めるのはオーナーだけ（公開時のルールで制限）
+  // ご意見・お問い合わせは Google フォームで受け付ける
+  const FEEDBACK_FORM_URL = "https://forms.gle/oAMbF6xqAhsEe7yq9";
   const FEATURES = ["持ち物リストの自動作成", "チェック・進み具合", "当日シミュレーション", "いつ使う？の表示", "スマホ・PCの同期", "テキストでコピー"];
   const RATE_LABEL = ["", "不満", "やや不満", "ふつう", "満足", "とても満足"];
 
@@ -1190,7 +1191,9 @@
     first[2]();
     (document.getElementById("fb-rate-1") || document.getElementById("ct-message"))?.focus();
   }
-  document.getElementById("fb-open").addEventListener("click", () => openFeedback());
+  // ヘッダーの「ご意見・お問い合わせ」が Google フォームへのリンクなら、そのまま開く（サイト内のアンケートは使わない）
+  const fbOpen = document.getElementById("fb-open");
+  if (fbOpen.tagName !== "A") fbOpen.addEventListener("click", () => openFeedback());
   document.getElementById("brand-mascot").innerHTML = mascotSvg("normal");
 
   // ---- 新規・編集フォーム ----
