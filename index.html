@@ -1,0 +1,38 @@
+<title>旅行・出張の持ち物チェックリスト</title>
+<meta charset="utf-8">
+<meta name="description" content="行き先と日数を入れるだけで、旅行・出張の持ち物リストを自動作成。2泊3日、海外旅行、温泉、子連れにも対応したチェックリストです。">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Mono:wght@500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="mascot normal" id="brand-mascot" style="--ms:44px" aria-hidden="true"></span>
+      <div class="brand-text">
+        <h1><span class="nw">旅行・出張の</span><em>持ち物チェックリスト</em></h1>
+        <p>行き先と日数を入れるだけで自動作成｜2泊3日・海外旅行・温泉・子連れにも対応</p>
+      </div>
+    </div>
+    <div class="top-side">
+      <span class="sync" id="mc-sync" data-s="local">この端末に保存</span>
+      <button class="btn" id="auth-btn" type="button" hidden>ログインして同期</button>
+      <button class="btn" id="fb-open" type="button">ご意見を送る</button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="rail" id="mc-rail" aria-label="旅の一覧">
+      <p class="rail-label">TRIPS</p>
+      <div class="trips" id="mc-trips"></div>
+    </nav>
+    <main id="mc-main"></main>
+  </div>
+</div>
+<div id="sheet-root"></div>
+<div id="sim-root"></div>
+<div class="toast" id="mc-toast" role="status" hidden></div>
+
+<script src="script.js"></script>
