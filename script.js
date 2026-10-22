@@ -428,7 +428,10 @@
   function renderRail() {
     const box = document.getElementById("mc-trips");
     const cur = view === "trip" ? activeTrip() : null;
-    document.getElementById("mc-rail").hidden = state.trips.length === 0;
+    // 旅がまだないときは左の列ごと消して、入力フォームを全幅で見せる
+    const rail = document.getElementById("mc-rail");
+    rail.hidden = state.trips.length === 0;
+    rail.parentElement.classList.toggle("no-rail", rail.hidden);
     box.replaceChildren(
       h("button", {
         class: "trip-btn new-btn", "aria-current": view === "new" ? "true" : "false",
@@ -545,7 +548,10 @@
       h("div", { class: "fb-band" },
         h("div", {}, mascot("happy", 46),
           h("p", {}, h("b", { text: "この持ち物チェックリストの使い心地はいかがですか？" }), h("span", { text: "1分で終わるアンケートです。" }))),
-        h("button", { class: "btn", onclick: () => openFeedback() }, "アンケートに答える"),
+        h("div", { class: "fb-band-actions" },
+          h("button", { class: "btn", onclick: () => openFeedback("survey") }, "アンケートに答える"),
+          canContact() && h("button", { class: "btn", onclick: () => openFeedback("contact") }, "修正案・お問い合わせ"),
+        ),
       ));
   }
 
@@ -976,23 +982,102 @@
   const FEATURES = ["持ち物リストの自動作成", "チェック・進み具合", "当日シミュレーション", "いつ使う？の表示", "スマホ・PCの同期", "テキストでコピー"];
   const RATE_LABEL = ["", "不満", "やや不満", "ふつう", "満足", "とても満足"];
 
-  function openFeedback() {
+  // 修正案・お問い合わせの送り先：WordPress 版は管理者メール、公開サイトは Formspree（firebase-config.js で設定）
+  const contactEndpoint = () => {
+    const u = window.CONTACT_FORM_ENDPOINT;
+    return typeof u === "string" && /^https:\/\/formspree\.io\/f\/\w+/.test(u) ? u : null;
+  };
+  const canContact = () => !!(window.MOCHIMONO_WP || contactEndpoint());
+  async function sendContact(msg) {
+    if (window.MOCHIMONO_WP) return wpFetch("contact", { method: "POST", body: msg });
+    const res = await fetch(contactEndpoint(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(Object.assign({ _subject: `【持ち物チェックリスト】${msg.kind}` }, msg)),
+    });
+    if (!res.ok) throw { code: "http_" + res.status };
+  }
+  const CONTACT_KINDS = ["修正案", "不具合の報告", "お問い合わせ"];
+
+  function openFeedback(tab) {
     const root = document.getElementById("sheet-root");
     const onKey = e => { if (e.key === "Escape") close(); };
     const close = () => { root.replaceChildren(); document.removeEventListener("keydown", onKey); };
     document.addEventListener("keydown", onKey);
 
+    const tabs = [
+      ["survey", "アンケート", () => showForm()],
+      canContact() && ["contact", "修正案・お問い合わせ", () => showContact()],
+      isOwner && ["results", "回答を見る", () => showResults()],
+    ].filter(Boolean);
+    const first = tabs.find(t => t[0] === tab) || tabs[0];
     const body = h("div", { class: "fb-body" });
     const sheet = h("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "fb-title" },
       h("div", { class: "fb-head" },
-        h("h2", { id: "fb-title", text: "アンケート" }),
-        isOwner && h("div", { class: "seg fb-tabs" },
-          h("label", {}, h("input", { type: "radio", name: "fb-tab", id: "fb-tab-a", checked: true, onchange: () => showForm() }), h("span", { text: "回答する" })),
-          h("label", {}, h("input", { type: "radio", name: "fb-tab", id: "fb-tab-r", onchange: () => showResults() }), h("span", { text: "回答を見る" })),
-        ),
+        h("h2", { id: "fb-title", text: canContact() ? "ご意見・お問い合わせ" : "アンケート" }),
+        tabs.length > 1 && h("div", { class: "seg fb-tabs", style: `grid-template-columns: repeat(${tabs.length}, minmax(0, 1fr))` },
+          tabs.map(([k, label, show]) => h("label", {},
+            h("input", { type: "radio", name: "fb-tab", id: "fb-tab-" + k, checked: k === first[0], onchange: show }),
+            h("span", { text: label })))),
       ),
       body,
     );
+
+    function showContact() {
+      const msg = { kind: CONTACT_KINDS[0], message: "", email: "", _gotcha: "" };
+      const err = h("p", { class: "fb-err", role: "alert" });
+      const kinds = h("div", { class: "chips" }, CONTACT_KINDS.map((k, i) =>
+        h("label", { class: "chip" }, h("input", {
+          type: "radio", name: "ct-kind", id: "ct-kind-" + i, checked: i === 0, onchange: () => { msg.kind = k; },
+        }), h("span", { text: k }))));
+      const text = h("textarea", {
+        id: "ct-message", rows: "5", maxlength: "2000", required: true,
+        placeholder: "例：持ち物に「爪切り」を追加してほしい／スマホで〇〇ボタンが押せない など",
+        oninput: e => { msg.message = e.target.value; err.textContent = ""; },
+      });
+      const mail = h("input", {
+        type: "email", id: "ct-email", autocomplete: "email", placeholder: "返信が必要な場合のみ",
+        oninput: e => { msg.email = e.target.value.trim(); },
+      });
+      // いたずら送信よけ（人には見えない欄。入力されていたら送らない）
+      const trap = h("input", { type: "text", name: "_gotcha", tabindex: "-1", autocomplete: "off", class: "ct-trap", "aria-hidden": "true", oninput: e => { msg._gotcha = e.target.value; } });
+      const sendBtn = h("button", { type: "submit", class: "btn primary" }, "送信する");
+
+      const submit = async e => {
+        e.preventDefault();
+        if (!msg.message.trim()) { err.textContent = "内容を入力してください。"; return; }
+        if (msg._gotcha) return;
+        sendBtn.disabled = true; sendBtn.textContent = "送信中…";
+        try {
+          await sendContact({ kind: msg.kind, message: msg.message.trim().slice(0, 2000), email: msg.email, page: location.href });
+          body.replaceChildren(h("div", { class: "fb-thanks" },
+            h("p", { class: "fb-thanks-title", text: "送信しました" }),
+            guide("happy", msg.email
+              ? "ありがとう！内容を確認して、必要なら入力してくれたアドレスに返事するね。"
+              : "ありがとう！いただいた内容は、作成者がしっかり読むよ。", 72),
+            h("div", { class: "sheet-actions" }, h("button", { type: "button", class: "btn primary", onclick: close }, "閉じる")),
+          ));
+        } catch (x) {
+          err.textContent = x && x.code === "http_429"
+            ? "短い時間に何度も送信されています。しばらくしてからお試しください。"
+            : "送信できませんでした。少し時間をおいて、もう一度お試しください。";
+          sendBtn.disabled = false; sendBtn.textContent = "送信する";
+        }
+      };
+
+      body.replaceChildren(h("form", { class: "fb-form", onsubmit: submit },
+        guide("normal", "「この持ち物も入れてほしい」「ここが使いにくい」など、気づいたことを教えてね。作成者に直接届くよ。", 64),
+        h("fieldset", { class: "field" }, h("legend", { text: "種類" }), kinds),
+        h("label", { class: "field" }, h("span", { text: "内容（必須）" }), text),
+        h("label", { class: "field" }, h("span", { text: "返信先のメールアドレス（任意）" }), mail),
+        trap,
+        err,
+        h("div", { class: "sheet-actions" },
+          h("button", { type: "button", class: "btn", onclick: close }, "キャンセル"),
+          sendBtn,
+        ),
+      ));
+    }
 
     function showForm() {
       const ans = { rating: 0, useful: [], purpose: "", comment: "" };
@@ -1102,8 +1187,8 @@
 
     const overlay = h("div", { class: "overlay", onclick: e => { if (e.target === overlay) close(); } }, sheet);
     root.replaceChildren(overlay);
-    showForm();
-    document.getElementById("fb-rate-1")?.focus();
+    first[2]();
+    (document.getElementById("fb-rate-1") || document.getElementById("ct-message"))?.focus();
   }
   document.getElementById("fb-open").addEventListener("click", () => openFeedback());
   document.getElementById("brand-mascot").innerHTML = mascotSvg("normal");
